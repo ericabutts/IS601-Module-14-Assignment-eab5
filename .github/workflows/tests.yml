@@ -23,13 +23,19 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          playwright install
+          pip install playwright
+          
+      - name: Install Playwright browsers
+        run: playwright install
 
       - name: Run unit & integration tests
         run: pytest -v --cov=app tests/
 
       - name: Run E2E Playwright tests
         run: |
-          # Serve the frontend for Playwright
+          # Serve frontend in background
           python -m http.server 5500 &
+          # Wait a few seconds for server to start
+          sleep 3
+          # Run E2E tests
           pytest -v tests/test_e2e_playwright.py
