@@ -58,7 +58,7 @@ class IntegerDivisionOperation(Operation):
     def execute(self, a: Decimal, b: Decimal) -> Decimal:
         if b == 0:
             raise OperationError("Division by zero")
-        return a / b
+        return a // b
     
 class PercentageOperation(Operation):
     def execute(self, a: Decimal, b: Decimal) -> Decimal:

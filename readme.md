@@ -132,10 +132,39 @@ The following commands are available:
 Testing Instructions: How to run unit tests and check test coverage.
 
     cd IS601_MIDTERM_MODULE
-    pytest
+    # Activate virtual environment in Windows
+    venv\Scripts\activate
 
-    TO check coverage:
-    pytest --cov=app
+    # Activate virtual environment in macOS / Linux
+    source venv/bin/activate
+
+    # install dependencies
+    pip install -r requirements.txt
+    
+    # Make sure playwright is installed
+    playwright install
+
+    # Start the FastAPI server
+    uvicorn main:app --reload
+
+    # Run all tests in the tests/ folder with coverage report
+    pytest -v --cov=app tests/
+
+    # Open coverage report in browser
+    start htmlcov/index.html   # Windows
+    open htmlcov/index.html    # macOS / Linux
+
+    # Test End-to-End (e2e) Tests with Playwright
+    # In a new terminal run the following commands
+    cd frontend
+    python -m http.server 5500
+
+    # In a new terminal, run the E2E test
+    pytest -v tests/test_e2e_playwright.py
+
+    # Run integration test on the FastAPI
+    pytest -v tests/test_integration.py
+
 
 CI/CD Information: Overview of GitHub Actions workflow and its purpose.
 
