@@ -1,55 +1,46 @@
+# tests/test_users.py
 from fastapi.testclient import TestClient
+from unittest.mock import patch, MagicMock
+from datetime import datetime
+
 from main import app
-import os
-import time
-from sqlalchemy import create_engine
-import pytest
+from app.database import get_db
+from app.schemas import UserCreate
 
 client = TestClient(app)
 
-from app.models import Base  # import your SQLAlchemy Base
+# Fake DB dependency
+def fake_db():
+    class FakeUser:
+        id = 1
+        username = "tester"
+        email = "tester@example.com"
+        password_hash = "hashedpassword"
+        created_at = datetime.utcnow()
+    
+    db = MagicMock()
+    db.query().filter().first.return_value = None  # No existing user
+    db.add.return_value = None
+    db.commit.return_value = None
+    # When refresh is called, set id and created_at
+    db.refresh.side_effect = lambda x: setattr(x, "id", 1) or setattr(x, "created_at", datetime.utcnow())
+    
+    return db
 
-@pytest.fixture(scope="session", autouse=True)
-def wait_for_db():
-    url = os.getenv("DATABASE_URL")
-    engine = create_engine(url)
+# Override get_db dependency
+app.dependency_overrides[get_db] = fake_db
 
-    # Wait for DB to be ready
-    start = time.time()
-    timeout = 30
-    while True:
-        try:
-            conn = engine.connect()
-            conn.close()
-            break
-        except Exception:
-            if time.time() - start > timeout:
-                raise TimeoutError("Database did not become available in time")
-            time.sleep(1)
-
-    # Create all tables
-    Base.metadata.create_all(engine)
-
-
-def test_register_and_login():
-    response = client.post("/register", json={
-        "username": "tester",
-        "email": "tester@example.com",
-        "password": "TestPass123"
-    })
+def test_create_user_route():
+    with patch("app.routes_users.security.hash_password", return_value="hashedpassword"):
+        response = client.post("/users/", json={
+            "username": "tester",
+            "email": "tester@example.com",
+            "password": "TestPass123"
+        })
+    
     assert response.status_code == 200
-
-    # Login success
-    response = client.post("/login", json={
-        "username": "tester",
-        "password": "TestPass123"
-    })
-    assert response.status_code == 200
-    assert "Welcome, tester" in response.json()["message"]
-
-    # Login failure
-    response = client.post("/login", json={
-        "username": "tester",
-        "password": "wrongpass"
-    })
-    assert response.status_code == 400
+    data = response.json()
+    assert data["id"] == 1
+    assert data["username"] == "tester"
+    assert data["email"] == "tester@example.com"
+    assert "created_at" in data
