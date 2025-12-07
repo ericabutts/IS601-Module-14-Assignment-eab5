@@ -1,46 +1,38 @@
 # tests/test_users.py
-from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
+import pytest
+from unittest.mock import MagicMock
+from app import crud, security
 from datetime import datetime
 
-from main import app
-from app.database import get_db
-from app.schemas import UserCreate
+@pytest.mark.parametrize(
+    "username,email,password",
+    [
+        ("testuser1", "user1@example.com", "Password123"),
+        ("testuser2", "user2@example.com", "Password456")
+    ]
+)
+def test_register_user(username, email, password):
+    # Fake user input object
+    class UserIn:
+        def __init__(self, username, email, password):
+            self.username = username
+            self.email = email
+            self.password = password
 
-client = TestClient(app)
+    user_in = UserIn(username=username, email=email, password=password)
 
-# Fake DB dependency
-def fake_db():
-    class FakeUser:
-        id = 1
-        username = "tester"
-        email = "tester@example.com"
-        password_hash = "hashedpassword"
-        created_at = datetime.utcnow()
+    # Mock session
+    mock_db = MagicMock()
     
-    db = MagicMock()
-    db.query().filter().first.return_value = None  # No existing user
-    db.add.return_value = None
-    db.commit.return_value = None
-    # When refresh is called, set id and created_at
-    db.refresh.side_effect = lambda x: setattr(x, "id", 1) or setattr(x, "created_at", datetime.utcnow())
-    
-    return db
+    # Call the CRUD function with the mock
+    user = crud.create_user(mock_db, user_in)
 
-# Override get_db dependency
-app.dependency_overrides[get_db] = fake_db
+    # Check that db.add, db.commit, db.refresh were called
+    mock_db.add.assert_called_once()
+    mock_db.commit.assert_called_once()
+    mock_db.refresh.assert_called_once_with(user)
 
-def test_create_user_route():
-    with patch("app.routes_users.security.hash_password", return_value="hashedpassword"):
-        response = client.post("/users/", json={
-            "username": "tester",
-            "email": "tester@example.com",
-            "password": "TestPass123"
-        })
-    
-    assert response.status_code == 200
-    data = response.json()
-    assert data["id"] == 1
-    assert data["username"] == "tester"
-    assert data["email"] == "tester@example.com"
-    assert "created_at" in data
+    # Check that password is hashed
+    assert security.verify_password(password, user.password_hash)
+    assert user.username == username
+    assert user.email == email

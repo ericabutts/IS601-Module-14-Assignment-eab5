@@ -1,4 +1,3 @@
-# main.py
 import os
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,7 +16,7 @@ DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./test.db")
 # -----------------------------
 from app import models, crud
 from app.database import engine, get_db
-from app.schemas import UserCreate, UserRead
+from app.schemas import UserCreate, UserRead, LoginRequest
 from app.calculator import Calculator
 from app.operations import OperationFactory
 from app.routes_calculations import router as calculation_router
@@ -42,7 +41,7 @@ app.add_middleware(
 # -----------------------------
 # Create database tables
 # -----------------------------
-## models.Base.metadata.create_all(bind=engine)
+models.Base.metadata.create_all(bind=engine)
 
 # -----------------------------
 # Include routers
@@ -67,12 +66,6 @@ def api_calculate(op_name: str, a: float, b: float):
 # -----------------------------
 # Auth routes (login/register)
 # -----------------------------
-from pydantic import BaseModel
-
-class LoginRequest(BaseModel):
-    username: str
-    password: str
-
 from fastapi import Body
 
 @app.post("/register", response_model=schemas.UserRead)
@@ -94,16 +87,13 @@ def login(login_data: schemas.LoginRequest = Body(...), db: Session = Depends(ge
         raise HTTPException(status_code=400, detail="Invalid credentials")
     return {"message": f"Welcome, {user.username}!"}
 
-
 # -----------------------------
 # CLI REPL (optional)
 # -----------------------------
-
 def init_db():
     from app import models
     from app.database import engine
     models.Base.metadata.create_all(bind=engine)
-
 
 if __name__ == "__main__":
     init_db()

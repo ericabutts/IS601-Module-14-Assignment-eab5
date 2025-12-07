@@ -203,3 +203,44 @@ Accessing pgAdmin:
     Port        5432
 
     If the 'user' table is missing from pgAdmin, create it with the SQL command.
+
+
+
+CURL Commands for testing the API:
+    Open Terminal and run WSL
+    Run the following commands:
+
+    Register a new user:
+    curl -X POST "http://localhost:8000/register" \
+    -H "Content-Type: application/json" \
+    -d '{"username":"testuser","email":"test@example.com","password":"testpass"}'
+
+    Login:
+    curl -X POST "http://localhost:8000/login" \
+    -H "Content-Type: application/json" \
+    -d '{"username":"testuser","password":"testpass"}'
+
+    Create a calculation
+    curl -X POST "http://localhost:8000/calculations/" \
+    -H "Content-Type: application/json" \
+    -d '{"a":10,"b":5,"type":"ADD","user_id":1}'
+
+    Get all calculations
+    curl -X GET "http://localhost:8000/calculations/"
+
+    Get a single calculation by ID
+    curl -X GET "http://localhost:8000/calculations/1"
+
+    Update a calculation
+    curl -X PUT "http://localhost:8000/calculations/1" \
+    -H "Content-Type: application/json" \
+    -d '{"a":20,"b":10,"type":"MULTIPLY"}'
+
+    Delete a calculation
+    curl -X DELETE "http://localhost:8000/calculations/1"
+
+    Get calculations for a specific user
+    curl -X GET "http://localhost:8000/calculations/user/1"
+
+    Quick API Calculator
+    curl -X GET "http://localhost:8000/calculate/ADD?a=10&b=5"
