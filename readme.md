@@ -198,7 +198,7 @@ Accessing pgAdmin:
 
 
 
-CURL Commands for testing the API:
+CURL Commands for testing the API using JWT Authentication Token:
     Open Terminal and run WSL
     Run the following commands:
 
@@ -212,27 +212,45 @@ CURL Commands for testing the API:
     -H "Content-Type: application/json" \
     -d '{"username":"testuser","password":"testpass"}'
 
+    Get User Info:
+    curl -X GET "http://localhost:8000/me" -H "Authorization: Bearer <JWT TOKEN>>"
+
     Create a calculation
     curl -X POST "http://localhost:8000/calculations/" \
     -H "Content-Type: application/json" \
-    -d '{"a":10,"b":5,"type":"ADD","user_id":1}'
+    -H "Authorization: Bearer <JWT_TOKEN>" \
+    -d '{"a":10,"b":5,"type":"ADD"}'
+
 
     Get all calculations
-    curl -X GET "http://localhost:8000/calculations/"
+    curl -X GET "http://localhost:8000/calculations/" \
+    -H "Authorization: Bearer <JWT_TOKEN>"
+
 
     Get a single calculation by ID
-    curl -X GET "http://localhost:8000/calculations/1"
+    curl -X GET "http://localhost:8000/calculations/1" \
+    -H "Authorization: Bearer <JWT_TOKEN>"
+
 
     Update a calculation
     curl -X PUT "http://localhost:8000/calculations/1" \
     -H "Content-Type: application/json" \
+    -H "Authorization: Bearer <JWT_TOKEN>" \
     -d '{"a":20,"b":10,"type":"MULTIPLY"}'
 
+
     Delete a calculation
-    curl -X DELETE "http://localhost:8000/calculations/1"
+    curl -X DELETE "http://localhost:8000/calculations/1" \
+    -H "Authorization: Bearer <JWT_TOKEN>"
+
 
     Get calculations for a specific user
-    curl -X GET "http://localhost:8000/calculations/user/1"
+    curl -X GET "http://localhost:8000/calculations/user/1" \
+    -H "Authorization: Bearer <JWT_TOKEN>"
+
 
     Quick API Calculator
-    curl -X GET "http://localhost:8000/calculate/ADD?a=10&b=5"
+    curl -X GET "http://localhost:8000/calculate/ADD?a=10&b=5" \
+    -H "Authorization: Bearer <JWT_TOKEN>"
+
+
