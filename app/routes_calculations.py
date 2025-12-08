@@ -1,8 +1,6 @@
-# routes/calculations.py
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 
 from app import models, schemas
 from app.database import get_db
@@ -15,21 +13,19 @@ router = APIRouter(prefix="/calculations", tags=["calculations"])
 # ---------------------------------------------------------
 # CREATE (Add)
 # ---------------------------------------------------------
-# POST /calculations
 @router.post("/", response_model=schemas.CalculationRead)
 def create_calculation(
-    calc: schemas.CalculationCreate,  
+    calc: schemas.CalculationCreate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    # Convert enum to uppercase string
-    operation_type = calc.type.value.upper()  # <-- key change
-    result = perform_calculation(calc.a, calc.b, operation_type)  
+    # calc.type is already uppercase from the Pydantic validator
+    result = perform_calculation(calc.a, calc.b, calc.type)
 
     db_calc = models.Calculation(
         a=calc.a,
         b=calc.b,
-        type=operation_type,   # store uppercase internally
+        type=calc.type,   # store uppercase internally
         result=result,
         user_id=current_user.id
     )
@@ -48,16 +44,10 @@ def get_user_calculations(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    """Get all calculations for the logged-in user"""
-    
     if user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not allowed")
 
-    return (
-        db.query(models.Calculation)
-        .filter(models.Calculation.user_id == user_id)
-        .all()
-    )
+    return db.query(models.Calculation).filter(models.Calculation.user_id == user_id).all()
 
 
 # ---------------------------------------------------------
@@ -69,16 +59,11 @@ def get_calculation(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    calc = db.query(models.Calculation).filter(
-        models.Calculation.id == calculation_id
-    ).first()
-
+    calc = db.query(models.Calculation).filter(models.Calculation.id == calculation_id).first()
     if not calc:
-        raise HTTPException(404, "Calculation not found")
-
+        raise HTTPException(status_code=404, detail="Calculation not found")
     if calc.user_id != current_user.id:
-        raise HTTPException(403, "Not allowed")
-
+        raise HTTPException(status_code=403, detail="Not allowed")
     return calc
 
 
@@ -92,27 +77,22 @@ def update_calculation(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    calc = db.query(models.Calculation).filter(
-        models.Calculation.id == calculation_id
-    ).first()
-
+    calc = db.query(models.Calculation).filter(models.Calculation.id == calculation_id).first()
     if not calc:
         raise HTTPException(status_code=404, detail="Calculation not found")
-
     if calc.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not allowed")
 
-    # Update fields
-    calc.a = updates.a
-    calc.b = updates.b
-    calc.type = updates.type
+    # Only update provided fields
+    if updates.a is not None:
+        calc.a = updates.a
+    if updates.b is not None:
+        calc.b = updates.b
+    if updates.type is not None:
+        calc.type = updates.type  # already uppercase from Pydantic validator
 
     # Recalculate result
-    calc.result = perform_calculation(
-        calc.a,
-        calc.b,
-        calc.type.value
-    )
+    calc.result = perform_calculation(calc.a, calc.b, calc.type)
 
     db.commit()
     db.refresh(calc)
@@ -128,13 +108,9 @@ def delete_calculation(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user)
 ):
-    calc = db.query(models.Calculation).filter(
-        models.Calculation.id == calculation_id
-    ).first()
-
+    calc = db.query(models.Calculation).filter(models.Calculation.id == calculation_id).first()
     if not calc:
         raise HTTPException(status_code=404, detail="Calculation not found")
-
     if calc.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not allowed")
 

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, validator
 from typing import Optional
 from enum import Enum
 
@@ -37,42 +37,39 @@ class UserRead(UserBase):
 class CalculationBase(BaseModel):
     a: float
     b: float
-    type: CalculationType
+    type: str  # Accept string from frontend (case-insensitive)
+
+    @validator("type")
+    def validate_type(cls, v):
+        v_upper = v.upper()
+        if v_upper not in {"ADD", "SUBTRACT", "MULTIPLY", "DIVIDE"}:
+            raise ValueError("Unsupported operation")
+        return v_upper
 
 
 class CalculationCreate(CalculationBase):
-    """
-    Frontend provides only a, b, type.
-    user_id is extracted from JWT, not passed in request body.
-    """
+    """Frontend provides only a, b, type. User_id comes from JWT."""
     pass
 
 
 class CalculationUpdate(BaseModel):
-    """
-    PUT update request.
-    All are optional because user may update only one field.
-    """
+    """All fields optional for PUT update."""
     a: Optional[float] = None
     b: Optional[float] = None
-    type: Optional[CalculationType] = None
+    type: Optional[str] = None
 
+    @validator("type")
+    def validate_type(cls, v):
+        if v is None:
+            return v
+        v_upper = v.upper()
+        if v_upper not in {"ADD", "SUBTRACT", "MULTIPLY", "DIVIDE"}:
+            raise ValueError("Unsupported operation")
+        return v_upper
 
-from pydantic import BaseModel
-from typing import Literal
-
-class CalculationType(str, Enum):
-    add = "add"
-    subtract = "subtract"
-    multiply = "multiply"
-    divide = "divide"
-
-class CalculationCreate(BaseModel):
-    a: float
-    b: float
-    type: CalculationType
 
 class CalculationRead(BaseModel):
+    id: int
     a: float
     b: float
     type: str
@@ -81,32 +78,14 @@ class CalculationRead(BaseModel):
     class Config:
         orm_mode = True
 
-    @classmethod
-    def from_orm(cls, obj):
-        return cls(
-            a=obj.a,
-            b=obj.b,
-            type=obj.type.lower(),
-            result=obj.result
-        )
 
-
-from pydantic import BaseModel, EmailStr
-
-class UserCreate(BaseModel):
-    email: EmailStr
-    password: str
-
-class UserRead(BaseModel):
-    id: int
-    email: EmailStr
-
-    class Config:
-        from_attributes = True  # formerly orm_mode
-
+# ------------------------------
+# AUTH SCHEMAS
+# ------------------------------
 class LoginRequest(BaseModel):
     username: str
     password: str
+
 
 class Token(BaseModel):
     access_token: str
