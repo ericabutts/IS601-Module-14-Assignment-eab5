@@ -46,6 +46,8 @@ models.Base.metadata.create_all(bind=engine)
 # -----------------------------
 # Include routers
 # -----------------------------
+from app.auth import router as auth_router
+app.include_router(auth_router)
 app.include_router(calculation_router)
 
 # -----------------------------
@@ -92,6 +94,7 @@ def login(login_data: schemas.LoginRequest, db: Session = Depends(get_db)):
 
     token = create_access_token({"sub": user.email})
     return {"access_token": token, "token_type": "bearer"}
+
 
 
 # -----------------------------

@@ -6,7 +6,7 @@
 <body>
     <h1>Login</h1>
 
-    <input id="email" placeholder="Email" />
+    <input id="email" placeholder="Email" type="email" />
     <input id="password" type="password" placeholder="Password" />
     <button id="loginBtn">Login</button>
 
@@ -25,7 +25,9 @@
                 });
 
                 if (res.ok) {
-                    document.getElementById("message").textContent = "Login successful";
+                    const data = await res.json();
+                    localStorage.setItem("token", data.access_token);
+                    window.location.href = "calculations.html"; // relative path
                 } else {
                     const data = await res.json();
                     document.getElementById("message").textContent = data.detail || "Invalid credentials";

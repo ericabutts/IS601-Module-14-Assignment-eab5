@@ -1,76 +1,113 @@
-from pydantic import BaseModel, EmailStr, field_validator, ConfigDict
-from datetime import datetime
-from decimal import Decimal
+from pydantic import BaseModel, EmailStr
 from typing import Optional
-import enum
+from enum import Enum
+
+
+# ------------------------------
+# ENUM FOR CALCULATION TYPES
+# ------------------------------
+class CalculationType(str, Enum):
+    add = "add"
+    subtract = "subtract"
+    multiply = "multiply"
+    divide = "divide"
+
+
+# ------------------------------
+# USER SCHEMAS
+# ------------------------------
+class UserBase(BaseModel):
+    email: EmailStr
+
+
+class UserCreate(UserBase):
+    password: str
+
+
+class UserRead(UserBase):
+    id: int
+
+    class Config:
+        orm_mode = True
+
+
+# ------------------------------
+# CALCULATION SCHEMAS
+# ------------------------------
+class CalculationBase(BaseModel):
+    a: float
+    b: float
+    type: CalculationType
+
+
+class CalculationCreate(CalculationBase):
+    """
+    Frontend provides only a, b, type.
+    user_id is extracted from JWT, not passed in request body.
+    """
+    pass
+
+
+class CalculationUpdate(BaseModel):
+    """
+    PUT update request.
+    All are optional because user may update only one field.
+    """
+    a: Optional[float] = None
+    b: Optional[float] = None
+    type: Optional[CalculationType] = None
+
+
+from pydantic import BaseModel
+from typing import Literal
+
+class CalculationType(str, Enum):
+    add = "add"
+    subtract = "subtract"
+    multiply = "multiply"
+    divide = "divide"
+
+class CalculationCreate(BaseModel):
+    a: float
+    b: float
+    type: CalculationType
+
+class CalculationRead(BaseModel):
+    a: float
+    b: float
+    type: str
+    result: float
+
+    class Config:
+        orm_mode = True
+
+    @classmethod
+    def from_orm(cls, obj):
+        return cls(
+            a=obj.a,
+            b=obj.b,
+            type=obj.type.lower(),
+            result=obj.result
+        )
+
+
+from pydantic import BaseModel, EmailStr
 
 class UserCreate(BaseModel):
-    username: str
     email: EmailStr
     password: str
 
 class UserRead(BaseModel):
     id: int
-    username: str
     email: EmailStr
-    created_at: datetime
 
     class Config:
-        orm_mode = True  # or `from_attributes = True` if using Pydantic v2
+        from_attributes = True  # formerly orm_mode
 
-# New model for login
 class LoginRequest(BaseModel):
     username: str
     password: str
 
-class OperationType(str, enum.Enum):
-    """Enum for calculation operation types"""
-    ADD = "ADD"
-    SUBTRACT = "SUBTRACT"
-    MULTIPLY = "MULTIPLY"
-    DIVIDE = "DIVIDE"
-
-class CalculationCreate(BaseModel):
-    """Schema for creating a calculation"""
-    a: Decimal
-    b: Decimal
-    type: OperationType
-    user_id: Optional[int] = None
-    
-    @field_validator('b')
-    @classmethod
-    def validate_division_by_zero(cls, v, info):
-        """Prevent division by zero"""
-        if info.data.get('type') == OperationType.DIVIDE and v == 0:
-            raise ValueError("Cannot divide by zero")
-        return v
-    
-    @field_validator('type')
-    @classmethod
-    def validate_operation_type(cls, v):
-        """Validate operation type is supported"""
-        if v not in OperationType:
-            raise ValueError(f"Operation type must be one of: {', '.join([op.value for op in OperationType])}")
-        return v
-
-class CalculationRead(BaseModel):
-    """Schema for reading a calculation"""
-    id: int
-    a: Decimal
-    b: Decimal
-    type: OperationType
-    result: Decimal
-    created_at: datetime
-    user_id: Optional[int] = None
-    
-    model_config = ConfigDict(from_attributes=True)
-
-class CalculationUpdate(BaseModel):
-    """Schema for updating a calculation (if needed)"""
-    a: Optional[Decimal] = None
-    b: Optional[Decimal] = None
-    type: Optional[OperationType] = None
-
 class Token(BaseModel):
     access_token: str
-    token_type: str = "bearer"
+    token_type: str

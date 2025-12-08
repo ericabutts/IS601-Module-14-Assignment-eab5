@@ -1,138 +1,143 @@
-# routes/calculations.py or endpoints/calculations.py
+# routes/calculations.py
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
-from decimal import Decimal
 
 from app import models, schemas
 from app.database import get_db
 from app.calculation_factory import perform_calculation
+from app.auth import get_current_user
 
 router = APIRouter(prefix="/calculations", tags=["calculations"])
 
 
-import logging
-import traceback
-
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-@router.post("/", response_model=schemas.CalculationRead, status_code=201)
+# ---------------------------------------------------------
+# CREATE (Add)
+# ---------------------------------------------------------
+# POST /calculations
+@router.post("/", response_model=schemas.CalculationRead)
 def create_calculation(
-    calculation: schemas.CalculationCreate,
-    db: Session = Depends(get_db)
+    calc: schemas.CalculationCreate,  
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
 ):
-    """Create a new calculation with detailed error logging"""
-    
-    logger.info(f"Received calculation request: {calculation}")
-    
-    try:
-        logger.info(f"Step 1: Extracting values - a={calculation.a}, b={calculation.b}, type={calculation.type}")
-        
-        # Use the factory pattern to perform the calculation
-        logger.info("Step 2: Calling perform_calculation")
-        result = perform_calculation(
-            calculation.a,
-            calculation.b,
-            calculation.type.value
-        )
-        logger.info(f"Step 3: Result computed: {result}")
-        
-        # Create database object
-        logger.info("Step 4: Creating database object")
-        db_calculation = models.Calculation(
-            a=calculation.a,
-            b=calculation.b,
-            type=calculation.type,
-            result=result,
-            user_id=calculation.user_id
-        )
-        
-        # Save to database
-        logger.info("Step 5: Saving to database")
-        db.add(db_calculation)
-        db.commit()
-        db.refresh(db_calculation)
-        
-        logger.info(f"Step 6: Successfully saved calculation with id={db_calculation.id}")
-        return db_calculation
-        
-    except Exception as e:
-        logger.error(f"ERROR OCCURRED: {str(e)}")
-        logger.error(f"ERROR TYPE: {type(e).__name__}")
-        logger.error(f"FULL TRACEBACK:\n{traceback.format_exc()}")
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+    # Convert enum to uppercase string
+    operation_type = calc.type.value.upper()  # <-- key change
+    result = perform_calculation(calc.a, calc.b, operation_type)  
 
-@router.get("/", response_model=List[schemas.CalculationRead])
-def get_calculations(
-    skip: int = 0,
-    limit: int = 100,
-    db: Session = Depends(get_db)
-):
-    """
-    Get all calculations with pagination.
-    """
-    calculations = db.query(models.Calculation).offset(skip).limit(limit).all()
-    return calculations
+    db_calc = models.Calculation(
+        a=calc.a,
+        b=calc.b,
+        type=operation_type,   # store uppercase internally
+        result=result,
+        user_id=current_user.id
+    )
+    db.add(db_calc)
+    db.commit()
+    db.refresh(db_calc)
+    return db_calc
 
 
-@router.get("/{calculation_id}", response_model=schemas.CalculationRead)
-def get_calculation(
-    calculation_id: int,
-    db: Session = Depends(get_db)
-):
-    """
-    Get a specific calculation by ID.
-    """
-    calculation = db.query(models.Calculation).filter(
-        models.Calculation.id == calculation_id
-    ).first()
-    
-    if not calculation:
-        raise HTTPException(status_code=404, detail="Calculation not found")
-    
-    return calculation
-
-
+# ---------------------------------------------------------
+# BROWSE (Get all user’s calculations)
+# ---------------------------------------------------------
 @router.get("/user/{user_id}", response_model=List[schemas.CalculationRead])
 def get_user_calculations(
     user_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
 ):
-    """
-    Get all calculations for a specific user.
-    """
-    # Verify user exists
-    user = db.query(models.User).filter(models.User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    """Get all calculations for the logged-in user"""
     
-    calculations = db.query(models.Calculation).filter(
-        models.Calculation.user_id == user_id
-    ).all()
-    
-    return calculations
+    if user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not allowed")
+
+    return (
+        db.query(models.Calculation)
+        .filter(models.Calculation.user_id == user_id)
+        .all()
+    )
 
 
+# ---------------------------------------------------------
+# READ (Get a single calculation)
+# ---------------------------------------------------------
+@router.get("/{calculation_id}", response_model=schemas.CalculationRead)
+def get_calculation(
+    calculation_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    calc = db.query(models.Calculation).filter(
+        models.Calculation.id == calculation_id
+    ).first()
+
+    if not calc:
+        raise HTTPException(404, "Calculation not found")
+
+    if calc.user_id != current_user.id:
+        raise HTTPException(403, "Not allowed")
+
+    return calc
+
+
+# ---------------------------------------------------------
+# EDIT (Update a calculation)
+# ---------------------------------------------------------
+@router.put("/{calculation_id}", response_model=schemas.CalculationRead)
+def update_calculation(
+    calculation_id: int,
+    updates: schemas.CalculationUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    calc = db.query(models.Calculation).filter(
+        models.Calculation.id == calculation_id
+    ).first()
+
+    if not calc:
+        raise HTTPException(status_code=404, detail="Calculation not found")
+
+    if calc.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not allowed")
+
+    # Update fields
+    calc.a = updates.a
+    calc.b = updates.b
+    calc.type = updates.type
+
+    # Recalculate result
+    calc.result = perform_calculation(
+        calc.a,
+        calc.b,
+        calc.type.value
+    )
+
+    db.commit()
+    db.refresh(calc)
+    return calc
+
+
+# ---------------------------------------------------------
+# DELETE
+# ---------------------------------------------------------
 @router.delete("/{calculation_id}", status_code=204)
 def delete_calculation(
     calculation_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
 ):
-    """
-    Delete a calculation by ID.
-    """
-    calculation = db.query(models.Calculation).filter(
+    calc = db.query(models.Calculation).filter(
         models.Calculation.id == calculation_id
     ).first()
-    
-    if not calculation:
+
+    if not calc:
         raise HTTPException(status_code=404, detail="Calculation not found")
-    
-    db.delete(calculation)
+
+    if calc.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not allowed")
+
+    db.delete(calc)
     db.commit()
-    
     return None
