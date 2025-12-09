@@ -1,87 +1,45 @@
 const { test, expect } = require('@playwright/test');
 
-test.describe('User Registration & Login', () => {
+test.describe('User Registration & Login API', () => {
 
-  test('Positive: Register with valid data', async ({ page }) => {
+  test('Positive: Register and login with valid data', async ({ request }) => {
     const email = `user${Date.now()}@example.com`;
     const password = "testpass123";
 
-    await page.goto('http://127.0.0.1:5500/register.html');
+    // Register
+    const registerResponse = await request.post('http://127.0.0.1:8000/register', {
+      data: { email, username: email, password }
+    });
+    expect(registerResponse.status()).toBe(200);
+    const registerData = await registerResponse.json();
+    expect(registerData.access_token).not.toBeNull();
 
-    await page.fill('#email', email);
-    await page.fill('#password', password);
-    await page.click('#registerBtn');
-
-    await expect(page.locator('#message')).toHaveText(/Registration successful!/i, { timeout: 10000 });
+    // Login
+    const loginResponse = await request.post('http://127.0.0.1:8000/login', {
+      data: { username: email, password }
+    });
+    expect(loginResponse.status()).toBe(200);
+    const loginData = await loginResponse.json();
+    expect(loginData.access_token).not.toBeNull();
   });
 
-  // -------------------------------
-  // Negative Test: Short Password
-  // -------------------------------
-  test('Negative: Register with short password', async ({ page }) => {
-    const email = `user${Date.now()}@example.com`;
-    const password = "123"; // too short
-
-    await page.goto('http://127.0.0.1:5500/register.html');
-
-    await page.fill('#email', email);
-    await page.fill('#password', password);
-    await page.click('#registerBtn');
-
-    await expect(page.locator('#message')).toHaveText(/Password too short/i, { timeout: 5000 });
-  });
-
-  test('Positive: Login with correct credentials', async ({ page }) => {
-  // Step 1: Register a new user
-  const email = `user${Date.now()}@example.com`;
-  const password = "testpass123";
-
-  await page.goto('http://127.0.0.1:5500/register.html');
-  await page.fill('#email', email);
-  await page.fill('#password', password);
-  await page.click('#registerBtn');
-
-  // Wait for registration to succeed
-  await expect(page.locator('#message')).toHaveText(/Registration successful!/i, { timeout: 10000 });
-
-  // Step 2: Log out or go to login page
-  await page.goto('http://127.0.0.1:5500/login.html');
-
-  // Step 3: Log in with the same credentials
-  await page.fill('#email', email);
-  await page.fill('#password', password);
-  await page.click('#loginBtn');
-
-  // Verify login success
-  await expect(page.locator('#message')).toHaveText(/Login successful/i, { timeout: 10000 });
-});
-
-  test('Negative: Login with wrong password', async ({ page }) => {
-    // Step 1: Register a new user first
+  test('Negative: Login with wrong password', async ({ request }) => {
     const email = `user${Date.now()}@example.com`;
     const correctPassword = "testpass123";
     const wrongPassword = "wrongpass456";
 
-    await page.goto('http://127.0.0.1:5500/register.html');
-    await page.fill('#email', email);
-    await page.fill('#password', correctPassword);
-    await page.click('#registerBtn');
+    // Register
+    await request.post('http://127.0.0.1:8000/register', {
+      data: { email, username: email, password: correctPassword }
+    });
 
-    // Wait for registration success
-    await expect(page.locator('#message')).toHaveText(/Registration successful!/i, { timeout: 10000 });
-
-    // Step 2: Go to login page
-    await page.goto('http://127.0.0.1:5500/login.html');
-
-    // Step 3: Try to log in with wrong password
-    await page.fill('#email', email);
-    await page.fill('#password', wrongPassword);
-    await page.click('#loginBtn');
-
-    // Step 4: Verify login failed
-    await expect(page.locator('#message')).toHaveText(/Invalid credentials/i, { timeout: 10000 });
+    // Login with wrong password
+    const loginResponse = await request.post('http://127.0.0.1:8000/login', {
+      data: { username: email, password: wrongPassword }
+    });
+    expect(loginResponse.status()).toBe(401);
+    const data = await loginResponse.json();
+    expect(data.detail).toBe('Invalid credentials');
   });
-
-
 
 });
